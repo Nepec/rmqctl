@@ -1,0 +1,4 @@
+kind: Exchange
+spec:
+  - name: ""
+    type: "topic"

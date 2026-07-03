@@ -1,0 +1,14 @@
+kind: Queue
+spec:
+  - name: queue.name
+    type: invalid
+    arguments:
+      key: val
+    bindings:
+      - exchange: events
+        routingKey: rk
+    inlinePolicy:
+      dead-letter-exchange: dead-letters
+      dead-letter-routing-key: dlq.rk
+      delivery-limit: 3
+  

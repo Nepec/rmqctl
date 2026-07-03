@@ -1,0 +1,41 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck      # unchecked error return values
+    - gosec         # common security issues
+    - govet         # suspicious constructs
+    - ineffassign   # assignments to vars never used after
+    - misspell
+    - staticcheck   # mixed bag: bugs, deprecated APIs, simplifications...
+    - unconvert     # unnecessary type convertions
+    - unparam       # unused params
+    - unused        # unused vars
+  settings:
+    errcheck:
+      check-type-assertions: true
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - github.com/spf13/viper.BindPFlag
+        - (*github.com/spf13/viper.Viper).BindPFlag
+        - (*tabwriter.Writer).Flush
+  exclusions:
+    rules:
+      # Exclude some linters from running on tests files.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

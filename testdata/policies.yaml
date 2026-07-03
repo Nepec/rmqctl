@@ -1,0 +1,8 @@
+Kind: Policy
+Definitions:
+  - name: "policyName"
+    applyTo: "queues"
+    pattern: ""
+    definition:
+      dead-letter-exchange: "dead-letters"
+    priority: 0

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@v6
+      - name: Install go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Verify dependencies
+        run: |
+          go mod verify
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+      - name: Unit Tests
+        run: |
+          make test
+
+  build:
+    needs: checks
+    strategy:
+      matrix:
+        include:
+          - {goos: "linux", goarch: "amd64", runson: "ubuntu-latest"}
+          - {goos: "linux", goarch: "arm64", runson: "ubuntu-latest"}
+          - {goos: "windows", goarch: "amd64", runson: "ubuntu-latest"}
+        fail-fast: false
+
+    name: "Build for ${{ matrix.goos }}_${{ matrix.goarch }}"
+    runs-on: ubuntu-latest
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@v6
+      - name: Install go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build rmqctl executable
+        run: |
+          make build

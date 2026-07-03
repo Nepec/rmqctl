@@ -1,0 +1,72 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@6
+        with:
+          fetch-depth: 0
+
+      - name: Validate Tag
+        run: |
+          TAG_COMMIT=$(git rev-list -n 1 "${{ github.ref_name  }}")
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::Tag ${{ github.ref_name }} does not point to a commit on main"
+            exit 1
+          fi
+
+  build:
+    needs: validate
+    strategy:
+      matrix:
+        include:
+          - {goos: "linux", goarch: "amd64", runson: "ubuntu-latest"}
+          - {goos: "linux", goarch: "arm64", runson: "ubuntu-latest"}
+          - {goos: "windows", goarch: "amd64", runson: "ubuntu-latest"}
+        fail-fast: false
+
+    name: "Build for ${{ matrix.goos }}_${{ matrix.goarch }}"
+    runs-on: ubuntu-latest
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@v6
+      - name: Install go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build rmqctl executable
+        run: |
+          make build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name" rmqctl-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Github release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+          generate_release_notes: true
