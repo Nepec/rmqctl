@@ -1,0 +1,4 @@
+{
+  "dead-letter-exchange": "dead-letters",
+  "dead-letter-routing-key": "routing.key.dead-letter.new"
+}

@@ -16,12 +16,19 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/nepec/rmqctl/internal/cli"
-	_ "github.com/nepec/rmqctl/internal/cli/apply"
-	_ "github.com/nepec/rmqctl/internal/cli/list"
-	_ "github.com/nepec/rmqctl/internal/cli/mergepolicy"
 )
 
+var version = "dev"
+
 func main() {
-	cli.Execute()
+	info := cli.BuildInfo{Version: version}
+
+	if err := cli.Execute(info); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "The command terminated due to an error: %v\n", err)
+		os.Exit(1)
+	}
 }

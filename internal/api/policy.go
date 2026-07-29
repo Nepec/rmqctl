@@ -16,6 +16,7 @@ type Policies map[string]Policy
 // The queue's name is used both for the policy name and the exact-matched regex pattern (ex "^name$")
 // The definition is provided as input.
 func NewStandardQueuePolicy(vhost, name string, definition map[string]any) Policy {
+	// TODO: escape pattern
 	return Policy{
 		Vhost:      vhost,
 		Pattern:    fmt.Sprintf("^%s$", name),

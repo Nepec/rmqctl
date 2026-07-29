@@ -1,0 +1,3 @@
+{
+  "dead-letter-routing-key": "this-rk-will-be-ignored"
+}

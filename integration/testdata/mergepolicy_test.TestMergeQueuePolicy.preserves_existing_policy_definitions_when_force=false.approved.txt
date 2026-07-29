@@ -1,0 +1,38 @@
+{
+  "bindings": [],
+  "description": "",
+  "exchanges": [],
+  "explanation": "Definitions of virtual host 'test-merge-preserve'",
+  "limits": {},
+  "metadata": {
+    "default_queue_type": "classic",
+    "description": "",
+    "tags": []
+  },
+  "original_vhost_name": "test-merge-preserve",
+  "parameters": [],
+  "policies": [
+    {
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "dlx",
+        "dead-letter-routing-key": "original-rk"
+      },
+      "name": "q1",
+      "pattern": "test-merge-preserve",
+      "priority": 0
+    }
+  ],
+  "product_name": "RabbitMQ",
+  "queues": [
+    {
+      "arguments": {
+        "x-queue-type": "classic"
+      },
+      "auto_delete": false,
+      "durable": true,
+      "name": "q1",
+      "type": "classic"
+    }
+  ]
+}
