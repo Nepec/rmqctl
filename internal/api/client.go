@@ -6,6 +6,8 @@
 // is the main entry point.
 package api
 
+type ClientFactory func() (RabbitClient, error)
+
 type RabbitClient interface {
 	Host() string
 	Port() int

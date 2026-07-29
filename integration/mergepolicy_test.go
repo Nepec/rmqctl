@@ -1,16 +1,16 @@
+//go:build integration
+
 package integration
 
 import (
-	"io"
+	"bytes"
 	"log/slog"
-	"net/http"
 	"os"
 	"testing"
 
 	approvals "github.com/approvals/go-approval-tests"
 	rabbithole "github.com/michaelklishin/rabbit-hole/v3"
-	"github.com/nepec/rmqctl/internal/api"
-	"github.com/nepec/rmqctl/internal/cli/mergepolicy"
+	"github.com/nepec/rmqctl/internal/cli"
 )
 
 func TestMain(m *testing.M) {
@@ -21,12 +21,21 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestMergePolicyAction(t *testing.T) {
+func runMerge(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+
+	var buf bytes.Buffer
+	cmd := cli.NewMergeCommand(realClientFactory)
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs(args)
+
+	err := cmd.Execute()
+	return buf.String(), err
+}
+
+func TestMergeQueuePolicy(t *testing.T) {
 	c := newClient(t)
-	adapter, err := api.NewRabbitHoleAdapter(rmqHost, rmqPort, rmqUser, rmqPass)
-	if err != nil {
-		t.Fatalf("unexpeted error: %v", err)
-	}
 
 	t.Run("creates new policy when queue has none", func(t *testing.T) {
 		vhost := "test-merge-no-existing"
@@ -34,52 +43,35 @@ func TestMergePolicyAction(t *testing.T) {
 		setupQueue(t, c, vhost, "q1")
 		setupQueue(t, c, vhost, "q2")
 
-		err = mergepolicy.MergeQueuePolicyAction(io.Discard, adapter,
-			[]string{vhost},
-			"testdata/definitions/create_policy_no_existing.json",
-			&api.QueueFilterOpts{},
-			false,
-			false,
+		out, err := runMerge(t, "policy",
+			"--apply-to", "queues",
+			"--vhosts", vhost,
+			"--file", "testdata/definitions/create_policy_no_existing.json",
 		)
 		if err != nil {
-			t.Fatalf("unexpeted error: %v", err)
+			t.Fatalf("unexpected error: %v\ncmd output:\n%s", err, out)
 		}
 
 		actual := fetchDefinitions(t, vhost)
 		assertGolden(t, actual)
 	})
 
-	t.Run("preserves existing policy when force=false", func(t *testing.T) {
+	t.Run("preserves existing policy definitions when force=false", func(t *testing.T) {
 		vhost := "test-merge-preserve"
 		setupVhost(t, c, vhost)
 		setupQueue(t, c, vhost, "q1")
-
-		res, err := c.PutPolicy(vhost, "q1", rabbithole.Policy{
-			Name:       "q1",
-			Pattern:    "^q1$",
-			Definition: rabbithole.PolicyDefinition{"dead-letter-exchange": "dlx", "dead-letter-routing-key": "original-rk"},
-			ApplyTo:    "queues",
+		setupPolicy(t, c, vhost, "q1", rabbithole.PolicyDefinition{
+			"dead-letter-exchange":    "dlx",
+			"dead-letter-routing-key": "original-rk",
 		})
-		if err != nil {
-			t.Fatalf("unexpeted error: %v", err)
-		}
-		defer res.Body.Close()
-		waitForPolicy(t, c, vhost, "q1", "q1")
 
-		if res.StatusCode != http.StatusCreated {
-			t.Fatalf("could not create policy for testing: %s", res.Status)
-		}
-
-		err = mergepolicy.MergeQueuePolicyAction(
-			io.Discard, adapter,
-			[]string{vhost},
-			"testdata/definitions/merge_policy_update.json",
-			&api.QueueFilterOpts{},
-			false,
-			false,
+		out, err := runMerge(t, "policy",
+			"--apply-to", "queues",
+			"--vhosts", vhost,
+			"--file", "testdata/definitions/merge_policy_update.json",
 		)
 		if err != nil {
-			t.Fatalf("unexpeted error: %v", err)
+			t.Fatalf("unexpected error: %v\ncmd output:\n%s", err, out)
 		}
 
 		actual := fetchDefinitions(t, vhost)
@@ -90,35 +82,50 @@ func TestMergePolicyAction(t *testing.T) {
 		vhost := " test-merge-overwrite"
 		setupVhost(t, c, vhost)
 		setupQueue(t, c, vhost, "q1")
-
-		res, err := c.PutPolicy(vhost, "q1", rabbithole.Policy{
-			Pattern:    "^q1$",
-			Definition: rabbithole.PolicyDefinition{"dead-letter-exchange": "dlx", "dead-letter-routing-key": "original-rk"},
-			ApplyTo:    "queues",
+		setupPolicy(t, c, vhost, "q1", rabbithole.PolicyDefinition{
+			"dead-letter-exchange":    "dlx",
+			"dead-letter-routing-key": "original-rk",
 		})
-		if err != nil {
-			t.Fatalf("unexpeted error: %v", err)
-		}
-		defer res.Body.Close()
-		waitForPolicy(t, c, vhost, "q1", "q1")
 
-		if res.StatusCode != http.StatusCreated {
-			t.Fatalf("could not create policy for testing: %s", res.Status)
-		}
-
-		err = mergepolicy.MergeQueuePolicyAction(
-			io.Discard, adapter,
-			[]string{vhost},
-			"testdata/definitions/merge_policy_overwrite.json",
-			&api.QueueFilterOpts{},
-			false,
-			true,
+		out, err := runMerge(t, "policy",
+			"--apply-to", "queues",
+			"--vhosts", vhost,
+			"--file", "testdata/definitions/merge_policy_overwrite.json",
+			"--force",
 		)
 		if err != nil {
-			t.Fatalf("unexpeted error: %v", err)
+			t.Fatalf("unexpected error: %v\ncmd output:\n%s", err, out)
 		}
 
 		actual := fetchDefinitions(t, vhost)
 		assertGolden(t, actual)
+	})
+
+	t.Run("fails for invalid applyTo resource type", func(t *testing.T) {
+		_, err := runMerge(t, "policy", "--apply-to", "bogus")
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+	})
+
+	t.Run("fails for invalid queue type", func(t *testing.T) {
+		_, err := runMerge(t, "policy", "--type", "bogus")
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+	})
+
+	t.Run("fails for non-existent vhost", func(t *testing.T) {
+		_, err := runMerge(t, "policy", "--vhosts", "non-existent")
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+	})
+
+	t.Run("fails for non-existent definitions file", func(t *testing.T) {
+		_, err := runMerge(t, "policy", "--file", "testdata/definitions/does-not-exists.json")
+		if err == nil {
+			t.Fatal("expected file not found error, got nil")
+		}
 	})
 }

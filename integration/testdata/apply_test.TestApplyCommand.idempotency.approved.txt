@@ -1,0 +1,58 @@
+{
+  "bindings": [
+    {
+      "arguments": {},
+      "destination": "queue.name",
+      "destination_type": "queue",
+      "routing_key": "rk",
+      "source": "events"
+    }
+  ],
+  "description": "",
+  "exchanges": [
+    {
+      "arguments": {},
+      "auto_delete": false,
+      "durable": true,
+      "name": "events",
+      "type": "topic"
+    }
+  ],
+  "explanation": "Definitions of virtual host 'test-idempotent'",
+  "limits": {},
+  "metadata": {
+    "default_queue_type": "classic",
+    "description": "",
+    "tags": []
+  },
+  "original_vhost_name": "test-idempotent",
+  "parameters": [],
+  "policies": [
+    {
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "dead-letters",
+        "dead-letter-routing-key": "dlq.rk",
+        "delivery-limit": 3
+      },
+      "name": "queue.name",
+      "pattern": "^queue\\.name$",
+      "priority": 0
+    }
+  ],
+  "product_name": "RabbitMQ",
+  "queues": [
+    {
+      "arguments": {
+        "key": "val",
+        "x-queue-type": "quorum"
+      },
+      "auto_delete": false,
+      "durable": true,
+      "name": "queue.name",
+      "type": "quorum"
+    }
+  ],
+  "rabbit_version": "4.3.3",
+  "rabbitmq_definition_format": "single_virtual_host"
+}

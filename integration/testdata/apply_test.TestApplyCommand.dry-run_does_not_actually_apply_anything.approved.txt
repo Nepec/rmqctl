@@ -1,0 +1,19 @@
+{
+  "bindings": [],
+  "description": "",
+  "exchanges": [],
+  "explanation": "Definitions of virtual host 'empty'",
+  "limits": {},
+  "metadata": {
+    "default_queue_type": "classic",
+    "description": "",
+    "tags": []
+  },
+  "original_vhost_name": "empty",
+  "parameters": [],
+  "policies": [],
+  "product_name": "RabbitMQ",
+  "queues": [],
+  "rabbit_version": "4.3.3",
+  "rabbitmq_definition_format": "single_virtual_host"
+}

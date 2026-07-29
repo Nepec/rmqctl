@@ -1,3 +1,5 @@
+//go:build integration
+
 package integration
 
 import (
@@ -10,6 +12,7 @@ import (
 
 	approvals "github.com/approvals/go-approval-tests"
 	rabbithole "github.com/michaelklishin/rabbit-hole/v3"
+	"github.com/nepec/rmqctl/internal/api"
 )
 
 const (
@@ -18,6 +21,10 @@ const (
 	rmqUser = "guest"
 	rmqPass = "guest"
 )
+
+func realClientFactory() (api.RabbitClient, error) {
+	return api.NewRabbitHoleClient(rmqHost, rmqPort, rmqUser, rmqPass)
+}
 
 func newClient(t *testing.T) *rabbithole.Client {
 	t.Helper()
@@ -52,6 +59,66 @@ func setupQueue(t *testing.T, c *rabbithole.Client, vhost, name string) {
 	_, err := c.DeclareQueue(vhost, name, rabbithole.QueueSettings{Durable: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func setupExchange(t *testing.T, c *rabbithole.Client, vhost, name string) {
+	t.Helper()
+
+	res, err := c.DeclareExchange(vhost, name, rabbithole.ExchangeSettings{
+		Type:    "topic",
+		Durable: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("could not create exchange for testing: %s", res.Status)
+	}
+
+	waitForExchange(t, c, vhost, name)
+}
+
+func setupPolicy(t *testing.T, c *rabbithole.Client, vhost, name string, def rabbithole.PolicyDefinition) {
+	t.Helper()
+
+	res, err := c.PutPolicy(vhost, name, rabbithole.Policy{
+		Name:       name,
+		Pattern:    "^" + name + "$",
+		Definition: def,
+		ApplyTo:    "queues",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("could not create policy for testing: %s", res.Status)
+	}
+	waitForPolicy(t, c, vhost, name, name)
+}
+
+func waitForExchange(t *testing.T, c *rabbithole.Client, vhost, name string) {
+	t.Helper()
+
+	timeout := 6 * time.Second
+	interval := 100 * time.Millisecond
+	deadline := time.Now().Add(timeout)
+
+	for {
+		info, err := c.GetExchange(vhost, name)
+		if err == nil && info.Name == name {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("exchange %q has not been created within the timeout %v", name, timeout)
+		}
+
+		time.Sleep(interval)
 	}
 }
 

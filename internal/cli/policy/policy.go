@@ -1,4 +1,4 @@
-package mergepolicy
+package policy
 
 import (
 	"encoding/json"
@@ -9,15 +9,48 @@ import (
 	"text/tabwriter"
 
 	"github.com/nepec/rmqctl/internal/api"
-	"github.com/nepec/rmqctl/internal/cli"
+	"github.com/nepec/rmqctl/internal/cli/queue"
+	"github.com/nepec/rmqctl/internal/cli/vhost"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var applyToQueuesCmd = &cobra.Command{
-	Use:   "queues",
-	Short: "Merge policies applied to queues",
-	Long: `Merge a policy definition from a file into the effective policy of each matching queue.
+type MergeOptions struct {
+	DefinitionsFile string
+	Force           bool
+	DryRun          bool
+}
+
+type PolicyFilterOptions struct {
+	ApplyTo string
+}
+
+type policyCommand struct {
+	getClient api.ClientFactory
+
+	// Flags
+	opts         *MergeOptions
+	policyFilter PolicyFilterOptions
+	queueFilter  queue.FilterOptions
+}
+
+func NewMergeQueuePolicy(getClient api.ClientFactory, opts *MergeOptions) *cobra.Command {
+	c := &policyCommand{
+		getClient:    getClient,
+		opts:         opts,
+		policyFilter: PolicyFilterOptions{},
+		queueFilter:  queue.FilterOptions{},
+	}
+
+	queueCmd := newDefaultMergePolicyCommand(&c.policyFilter, &c.queueFilter, c.validate, c.mergeQueuePolicy)
+	return queueCmd
+}
+
+func newDefaultMergePolicyCommand(policyFilter *PolicyFilterOptions, queueFilter *queue.FilterOptions, validate func(*cobra.Command, []string) error, execute func(*cobra.Command, []string) error) *cobra.Command {
+	queueCmd := &cobra.Command{
+		Use:   "policy",
+		Short: "Merge policy definitions applied to queues",
+		Long: `Merge a policy definition from a file into the effective policy of each matching queue.
 
 For every selected vhost, this command fetches the current effective policy for each queue and 
 merges in the definition from the input file. 
@@ -28,86 +61,76 @@ the definitions from the file.
 The merge is a soft-merge by default: keys are only added, never overwritten. Use --force
 to overwrite keys that already exist in the current policy.
 
-Filtering:
-  The --contains and --type flags narrow the queue set by name and type.
-
-  The boolean filters (--empty, --active, --with-policy) are three-valued:
-    omitted     no filtering on that property
-    --flag      include only queues where the property is true
-    --flag=false include only queues where the property is false
-
-  For example, --empty selects only empty queues, while --empty=false selects only
-  non-empty queues, and omitting it includes queues regardless of message count.
+Queue filtering is performed with the same options as the list queues command.
 
 Use --dry-run to preview which queues would be updated without applying any changes.`,
-	Aliases:      []string{"queue", "qs", "q"},
-	SilenceUsage: true,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		qType, _ := cmd.Flags().GetString("type")
-		return cli.ValidateQueueType(qType)
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		adapter, err := cli.ClientFromConfig()
-		if err != nil {
-			return fmt.Errorf("failed to connect to rabbitmq: %w", err)
-		}
+		SilenceUsage: true,
+		Aliases:      []string{"pols", "pol", "p"},
+		Args:         cobra.NoArgs,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := validate(cmd, args); err != nil {
+				return err
+			}
+			if err := vhost.BindVhosts(cmd, args); err != nil {
+				return err
+			}
+			return nil
+		},
+		RunE: execute,
+	}
 
-		vhosts, err := cli.ResolveVhosts(adapter, viper.GetStringSlice("vhosts"))
-		if err != nil {
-			return fmt.Errorf("parsing input vhost list '%v': %w", viper.GetStringSlice("vhosts"), err)
-		}
+	queueCmd.PersistentFlags().SortFlags = false
+	queueCmd.Flags().SortFlags = false
 
-		filterOpts := &api.QueueFilterOpts{}
+	// Policy filters
+	queueCmd.Flags().StringVar(&policyFilter.ApplyTo, "apply-to", "queues", "Only inlcude policies which apply to this resource (queues or exchanges)")
 
-		filterOpts.Contains, _ = cmd.Flags().GetString("contains")
-		filterOpts.Type, _ = cmd.Flags().GetString("type")
-		empty, _ := cmd.Flags().GetBool("empty")
-		if cmd.Flags().Changed("empty") {
-			filterOpts.Empty = &empty
-		}
-		active, _ := cmd.Flags().GetBool("active")
-		if cmd.Flags().Changed("active") {
-			filterOpts.Active = &active
-		}
-		withPolicy, _ := cmd.Flags().GetBool("with-policy")
-		if cmd.Flags().Changed("with-policy") {
-			filterOpts.WithPolicy = &withPolicy
-		}
+	// Resource filters
+	queue.AddFilterFlags(queueCmd.Flags(), queueFilter)
 
-		return MergeQueuePolicyAction(os.Stdout, adapter, vhosts, definitionFile, filterOpts, dryRun, force)
-	},
+	queueCmd.PersistentFlags().StringSlice("vhosts", []string{"/"}, "Virtual hosts")
+
+	return queueCmd
 }
 
-func init() {
-	mergePolicyCmd.AddCommand(applyToQueuesCmd)
-
-	applyToQueuesCmd.Flags().StringP("contains", "c", "", "Only include queues whose name contains this substring")
-	applyToQueuesCmd.Flags().StringP("type", "t", "", "Only include queues of this type (classic or quorum)")
-	applyToQueuesCmd.Flags().BoolP("empty", "e", false, "Only include empty queues")
-	applyToQueuesCmd.Flags().BoolP("active", "a", false, "Only include queues with active consumers")
-	applyToQueuesCmd.Flags().Bool("with-policy", false, "Only include queues with an effective policy")
+func (p *policyCommand) validate(_ *cobra.Command, _ []string) error {
+	if err := validateApplyTo(p.policyFilter.ApplyTo); err != nil {
+		return err
+	}
+	if err := queue.ValidateQueueType(p.queueFilter.QueueType); err != nil {
+		return err
+	}
+	return nil
 }
 
-type updateStatus int
+func validateApplyTo(t string) error {
+	switch t {
+	case "", "queues", "exchanges":
+	// ok
+	default:
+		return fmt.Errorf("apply to may either by 'queues' or 'exchanges', got %q", t)
+	}
 
-const (
-	statusUpdated updateStatus = iota
-	statusFailed
-	statusDryRun
-)
-
-type policyUpdateResult struct {
-	Vhost        string
-	Queue        string
-	Policy       string
-	UpdateStatus updateStatus
+	return nil
 }
 
-func MergeQueuePolicyAction(out io.Writer, c api.RabbitClient, vhosts []string, definitionFile string, qFilterOpts *api.QueueFilterOpts, dryRun, force bool) error {
+func (p *policyCommand) mergeQueuePolicy(cmd *cobra.Command, _ []string) error {
+	client, err := p.getClient()
+	if err != nil {
+		return fmt.Errorf("could not create rabbitmq client: %w", err)
+	}
+	vhosts, err := vhost.Resolve(client, viper.GetStringSlice("vhosts"))
+	if err != nil {
+		return fmt.Errorf("parsing input vhost list '%v' for %q: %w", viper.GetStringSlice("vhosts"), client.Host(), err)
+	}
+	return executeMerge(cmd.OutOrStdout(), client, vhosts, p.opts.DefinitionsFile, p.queueFilter.ToQueueFilterOpts(cmd), p.opts.DryRun, p.opts.Force)
+}
+
+func executeMerge(out io.Writer, c api.RabbitClient, vhosts []string, definitionFile string, qFilterOpts *api.QueueFilterOpts, dryRun, force bool) error {
 	// #nosec G304 -- definitionFile is a user-supplied CLI flag, not untrusted network input
 	df, err := os.Open(definitionFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading definitions file %q: %w", definitionFile, err)
 	}
 	defer func() {
 		_ = df.Close()
@@ -224,4 +247,19 @@ func (p PolicyTableFormatter) Print(out io.Writer, results []policyUpdateResult,
 	} else {
 		fmt.Fprintf(w, "\nTotal: %d updated, %d failed\n", updated, failed)
 	}
+}
+
+type updateStatus int
+
+const (
+	statusUpdated updateStatus = iota
+	statusFailed
+	statusDryRun
+)
+
+type policyUpdateResult struct {
+	Vhost        string
+	Queue        string
+	Policy       string
+	UpdateStatus updateStatus
 }

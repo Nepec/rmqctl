@@ -1,0 +1,59 @@
+{
+  "bindings": [],
+  "description": "",
+  "exchanges": [],
+  "explanation": "Definitions of virtual host 'test-merge-no-existing'",
+  "limits": {},
+  "metadata": {
+    "default_queue_type": "classic",
+    "description": "",
+    "tags": []
+  },
+  "original_vhost_name": "test-merge-no-existing",
+  "parameters": [],
+  "policies": [
+    {
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "dead-letters",
+        "dead-letter-routing-key": "routing.key.dead-letter.new"
+      },
+      "name": "q1",
+      "pattern": "^q1$",
+      "priority": 0
+    },
+    {
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "dead-letters",
+        "dead-letter-routing-key": "routing.key.dead-letter.new"
+      },
+      "name": "q2",
+      "pattern": "^q2$",
+      "priority": 0
+    }
+  ],
+  "product_name": "RabbitMQ",
+  "queues": [
+    {
+      "arguments": {
+        "x-queue-type": "classic"
+      },
+      "auto_delete": false,
+      "durable": true,
+      "name": "q1",
+      "type": "classic"
+    },
+    {
+      "arguments": {
+        "x-queue-type": "classic"
+      },
+      "auto_delete": false,
+      "durable": true,
+      "name": "q2",
+      "type": "classic"
+    }
+  ],
+  "rabbit_version": "4.3.3",
+  "rabbitmq_definition_format": "single_virtual_host"
+}
