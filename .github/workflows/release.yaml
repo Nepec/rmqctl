@@ -46,7 +46,7 @@ jobs:
           - {goos: "linux", goarch: "amd64", runson: "ubuntu-latest"}
           - {goos: "linux", goarch: "arm64", runson: "ubuntu-latest"}
           - {goos: "windows", goarch: "amd64", runson: "ubuntu-latest"}
-        fail-fast: false
+      fail-fast: false
 
     name: "Build for ${{ matrix.goos }}_${{ matrix.goarch }}"
     runs-on: ubuntu-latest
