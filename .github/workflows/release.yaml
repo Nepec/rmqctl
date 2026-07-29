@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch source code
-        uses: actions/checkout@6
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -22,8 +22,24 @@ jobs:
             exit 1
           fi
 
-  build:
+  integration:
     needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@v6
+      - name: Install go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Integration tests
+        run: |
+          make integration
+
+  build:
+    needs: [validate, integration]
     strategy:
       matrix:
         include:
@@ -52,7 +68,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name" rmqctl-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: rmqctl-${{ matrix.goos }}-${{ matrix.goarch }}
 
   release:
     needs: build

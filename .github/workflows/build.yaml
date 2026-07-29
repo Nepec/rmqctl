@@ -26,6 +26,22 @@ jobs:
         run: |
           make test
 
+  integration:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@v6
+      - name: Install go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Integration tests
+        run: |
+          make integration
+
   build:
     needs: checks
     strategy:
