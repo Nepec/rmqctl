@@ -172,9 +172,11 @@ func fetchDefinitions(t *testing.T, vhost string) map[string]any {
 }
 
 func scrubVolatileFields(def map[string]any) map[string]any {
+	delete(def, "rabbit_version")
 	delete(def, "rabbitmq_version")
 	delete(def, "product_version")
 	delete(def, "erlang_version")
+	delete(def, "rabbitmq_definition_format")
 
 	if queues, ok := def["queues"].([]any); ok {
 		for _, q := range queues {

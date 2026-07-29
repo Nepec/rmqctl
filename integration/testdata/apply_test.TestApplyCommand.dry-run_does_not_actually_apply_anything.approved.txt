@@ -13,7 +13,5 @@
   "parameters": [],
   "policies": [],
   "product_name": "RabbitMQ",
-  "queues": [],
-  "rabbit_version": "4.3.3",
-  "rabbitmq_definition_format": "single_virtual_host"
+  "queues": []
 }
