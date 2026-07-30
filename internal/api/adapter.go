@@ -10,10 +10,14 @@ import (
 	rabbithole "github.com/michaelklishin/rabbit-hole/v3"
 )
 
+// RabbitHoleClient implements RabbitClient on top of the rabbit-hole
+// Management API client.
 type RabbitHoleClient struct {
 	c *rabbithole.Client
 }
 
+// NewRabbitHoleClient builds a RabbitHoleClient targeting the RabbitMQ
+// Management API at host:port, authenticating with user/pass.
 func NewRabbitHoleClient(host string, port int, user, pass string) (*RabbitHoleClient, error) {
 	u := url.URL{
 		Scheme: "http",
@@ -27,6 +31,8 @@ func NewRabbitHoleClient(host string, port int, user, pass string) (*RabbitHoleC
 	return &RabbitHoleClient{c: rh}, nil
 }
 
+// Host returns the client's target host, parsed from its endpoint URL.
+// It returns "" if the endpoint cannot be parsed.
 func (r RabbitHoleClient) Host() string {
 	u, err := url.Parse(r.c.Endpoint)
 	if err != nil {
@@ -35,6 +41,8 @@ func (r RabbitHoleClient) Host() string {
 	return u.Host
 }
 
+// Port returns the client's target port, parsed from its endpoint URL.
+// It returns 0 if the endpoint cannot be parsed.
 func (r RabbitHoleClient) Port() int {
 	u, err := url.Parse(r.c.Endpoint)
 	if err != nil {
@@ -47,6 +55,7 @@ func (r RabbitHoleClient) Port() int {
 	return p
 }
 
+// ListVhosts implements VhostStore.
 func (r *RabbitHoleClient) ListVhosts() ([]Vhost, error) {
 	vs, err := r.c.ListVhosts()
 	if err != nil {
@@ -65,6 +74,7 @@ func (r *RabbitHoleClient) ListVhosts() ([]Vhost, error) {
 	return vhosts, nil
 }
 
+// ListQueuesIn implements QueueStore.
 func (r *RabbitHoleClient) ListQueuesIn(vhost string) ([]Queue, error) {
 	qs, err := r.c.ListQueuesIn(vhost)
 	if err != nil {
@@ -86,6 +96,7 @@ func (r *RabbitHoleClient) ListQueuesIn(vhost string) ([]Queue, error) {
 	return qResp, nil
 }
 
+// ListPoliciesIn implements PolicyStore.
 func (r *RabbitHoleClient) ListPoliciesIn(vhost string) (Policies, error) {
 	pols, err := r.c.ListPoliciesIn(vhost)
 	if err != nil {
@@ -111,6 +122,7 @@ func (r *RabbitHoleClient) ListPoliciesIn(vhost string) (Policies, error) {
 	return policies, nil
 }
 
+// GetPolicy implements PolicyStore.
 func (r *RabbitHoleClient) GetPolicy(vhost, name string) (*Policy, error) {
 	pol, err := r.c.GetPolicy(vhost, name)
 	if err != nil {
@@ -128,6 +140,7 @@ func (r *RabbitHoleClient) GetPolicy(vhost, name string) (*Policy, error) {
 	return &p, nil
 }
 
+// PutPolicy implements PolicyStore.
 func (r *RabbitHoleClient) PutPolicy(vhost, name string, policy Policy) error {
 	newPolicy := rabbithole.Policy{
 		Vhost:      vhost,
@@ -158,6 +171,8 @@ func (r *RabbitHoleClient) PutPolicy(vhost, name string, policy Policy) error {
 	return nil
 }
 
+// DeclareQueue implements QueueStore. opts.Arguments must contain an
+// "x-queue-type" entry; DeclareQueue returns an error if it is missing.
 func (r *RabbitHoleClient) DeclareQueue(vhost, name string, opts QueueDeclareOpts) error {
 	// TODO: improve, too crude. should type be checked here or a default be enforced?
 	qt, ok := opts.Arguments["x-queue-type"]
@@ -180,6 +195,7 @@ func (r *RabbitHoleClient) DeclareQueue(vhost, name string, opts QueueDeclareOpt
 	return nil
 }
 
+// DeclareBinding implements BindingStore.
 func (r *RabbitHoleClient) DeclareBinding(vhost string, opts Binding) error {
 	b := rabbithole.BindingInfo{
 		Source:          opts.Source,

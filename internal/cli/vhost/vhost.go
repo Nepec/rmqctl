@@ -1,3 +1,5 @@
+// Package vhost provides the "vhosts" list command and vhost-resolution
+// helpers shared by other CLI commands that accept a --vhosts flag.
 package vhost
 
 import (
@@ -15,6 +17,8 @@ type vhostCommand struct {
 	getClient api.ClientFactory
 }
 
+// NewListVhostCommand builds the "vhosts" command, which lists every
+// virtual host on the node reachable through getClient.
 func NewListVhostCommand(getClient api.ClientFactory) *cobra.Command {
 	c := vhostCommand{getClient: getClient}
 
@@ -68,6 +72,9 @@ func (v vhostTableFormatter) Print(out io.Writer, results []api.Vhost) {
 	fmt.Fprintln(out, "")
 }
 
+// Resolve expands requested into a concrete list of vhost names. If
+// requested is exactly ["*"], it fetches and returns every vhost on the
+// node via c; otherwise it returns requested unchanged.
 func Resolve(c api.RabbitClient, requested []string) ([]string, error) {
 	if len(requested) == 1 && requested[0] == "*" {
 		slog.Debug("wildcard '*' detected, fetching all vhosts from broker...")

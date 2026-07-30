@@ -142,6 +142,8 @@ func (c rootCommand) Execute() error {
 	return c.cmd.Execute()
 }
 
+// Execute builds the rmqctl command tree and runs it against os.Args,
+// embedding info (e.g. the build version) into the "version" subcommand.
 func Execute(info BuildInfo) error {
 	r := newRootCommand(info)
 	return r.Execute()

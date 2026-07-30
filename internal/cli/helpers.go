@@ -5,6 +5,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// ClientFromConfig builds a RabbitHoleClient from viper's current
+// "hostname", "port", "username", and "password" values, as populated
+// from flags, environment variables, and config file by the root command.
 func ClientFromConfig() (*api.RabbitHoleClient, error) {
 	host := viper.GetString("hostname")
 	port := viper.GetInt("port")

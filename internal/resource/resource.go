@@ -13,22 +13,34 @@ import (
 	"github.com/nepec/rmqctl/internal/definitions"
 )
 
+// SpecFactory builds an empty SpecList for a manifest kind. It's the
+// constructor registered per-kind so a manifest can be decoded into the
+// right concrete spec type.
 type SpecFactory func() SpecList
 
 type (
+	// ErrInvalidResourceType reports that a resource was declared with a
+	// type it doesn't recognize (e.g. an unknown queue or exchange type).
 	ErrInvalidResourceType struct {
 		resource      string
 		requestedType string
 	}
+	// ErrInvalidResourceSpec reports that a resource spec failed
+	// validation, e.g. a required field was left empty.
 	ErrInvalidResourceSpec struct {
 		resource string
 		message  string
 	}
 )
 
+// SpecList is a validated, homogeneous list of resource specs decoded
+// from a manifest (e.g. QueueSpecList, ExchangeSpecList).
 type SpecList interface {
+	// Validate reports whether every spec in the list is well-formed.
 	Validate() error
-	MarshalDefs(vhostr string) definitions.Definitions
+	// MarshalDefs translates every spec in the list into RabbitMQ
+	// definitions scoped to vhost.
+	MarshalDefs(vhost string) definitions.Definitions
 }
 
 func (e ErrInvalidResourceType) Error() string {

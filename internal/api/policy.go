@@ -5,11 +5,15 @@ import (
 	"maps"
 )
 
+// Policy is a RabbitMQ policy: a named set of arguments (Definition)
+// applied to every resource on Vhost whose name matches Pattern.
 type Policy struct {
 	Vhost, Pattern, ApplyTo, Name string
 	Priority                      int
 	Definition                    map[string]any
 }
+
+// Policies is a set of policies keyed by name.
 type Policies map[string]Policy
 
 // NewStandardQueuePolicy defines a new RabbitMQ policy scoped to queues only.

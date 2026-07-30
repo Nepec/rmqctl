@@ -1,3 +1,6 @@
+// Package queue provides the "queues" list command, along with the
+// filter flags and result formatting other commands (such as the policy
+// merge command) reuse when they operate on a set of queues.
 package queue
 
 import (
@@ -18,6 +21,9 @@ type queueCommand struct {
 	filter FilterOptions
 }
 
+// NewListQueueCommand builds the "queues" command, which lists queues
+// across one or more vhosts reachable through getClient, narrowed by the
+// filter flags added via AddFilterFlags.
 func NewListQueueCommand(getClient api.ClientFactory) *cobra.Command {
 	c := &queueCommand{getClient: getClient, filter: FilterOptions{}}
 
@@ -77,6 +83,8 @@ func (q *queueCommand) validate(_ *cobra.Command, _ []string) error {
 	return ValidateQueueType(q.filter.QueueType)
 }
 
+// AddFilterFlags registers the --contains, --type, --empty, --active, and
+// --with-policy flags on fs, binding their values into opts.
 func AddFilterFlags(fs *pflag.FlagSet, opts *FilterOptions) {
 	fs.StringVarP(&opts.Contains, "contains", "c", "", "Only include queues whose name contains this substring")
 	fs.StringVarP(&opts.QueueType, "type", "t", "", "Only include queues of this type (classic or quorum)")
@@ -117,6 +125,9 @@ func executeList(out io.Writer, c api.RabbitClient, vhosts []string, opts *api.Q
 	return nil
 }
 
+// FilterOptions holds the raw flag values for queue filtering, as bound
+// by AddFilterFlags. Convert to api.QueueFilterOpts with ToQueueFilterOpts
+// before use, since the boolean fields alone can't represent "unset".
 type FilterOptions struct {
 	Contains   string
 	QueueType  string
@@ -125,6 +136,10 @@ type FilterOptions struct {
 	WithPolicy bool
 }
 
+// ToQueueFilterOpts converts f into an api.QueueFilterOpts. The boolean
+// filters are three-valued: a flag only constrains the result if it was
+// explicitly set on cmd (cmd.Flags().Changed), so "--empty=false" and
+// never passing --empty are distinguishable.
 func (f *FilterOptions) ToQueueFilterOpts(cmd *cobra.Command) *api.QueueFilterOpts {
 	opts := &api.QueueFilterOpts{
 		Contains: f.Contains,
@@ -144,6 +159,7 @@ func (f *FilterOptions) ToQueueFilterOpts(cmd *cobra.Command) *api.QueueFilterOp
 	return opts
 }
 
+// ValidateQueueType returns an error unless t is "", "classic", or "quorum".
 func ValidateQueueType(t string) error {
 	switch t {
 	case "", "classic", "quorum":
@@ -155,8 +171,11 @@ func ValidateQueueType(t string) error {
 	return nil
 }
 
+// QueueTableFormatter renders a list of queues as a tab-aligned table.
 type QueueTableFormatter struct{}
 
+// Print writes results to out as a tab-aligned table, followed by a count
+// summary line.
 func (q QueueTableFormatter) Print(out io.Writer, results []api.Queue) {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	defer func() {

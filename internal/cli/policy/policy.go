@@ -1,3 +1,6 @@
+// Package policy provides the "policy" command, which merges a policy
+// definition from a file into the effective policy of every queue
+// matching the selected vhosts and filters.
 package policy
 
 import (
@@ -15,12 +18,18 @@ import (
 	"github.com/spf13/viper"
 )
 
+// MergeOptions configures the policy merge command's behavior: which file
+// to read the policy definition from, whether to overwrite conflicting
+// keys (Force), and whether to preview changes without applying them
+// (DryRun).
 type MergeOptions struct {
 	DefinitionsFile string
 	Force           bool
 	DryRun          bool
 }
 
+// PolicyFilterOptions narrows which existing policies are considered when
+// merging.
 type PolicyFilterOptions struct {
 	ApplyTo string
 }
@@ -34,6 +43,11 @@ type policyCommand struct {
 	queueFilter  queue.FilterOptions
 }
 
+// NewMergeQueuePolicy builds the "policy" command. For each selected
+// vhost, it fetches every matching queue's effective policy and merges in
+// the definition from opts.DefinitionsFile — soft-merging by default, or
+// overwriting existing keys if opts.Force is set. Queues with no
+// effective policy get a new one containing only the file's definition.
 func NewMergeQueuePolicy(getClient api.ClientFactory, opts *MergeOptions) *cobra.Command {
 	c := &policyCommand{
 		getClient:    getClient,
@@ -217,8 +231,13 @@ func createOrMergePolicy(q api.Queue, vhost string, policies map[string]api.Poli
 	return current, nil
 }
 
+// PolicyTableFormatter renders policy merge results as a tab-aligned
+// table.
 type PolicyTableFormatter struct{}
 
+// Print writes results to out as a tab-aligned table, followed by a
+// totals line. dryRun controls whether rows are reported as
+// "would-update" or "updated".
 func (p PolicyTableFormatter) Print(out io.Writer, results []policyUpdateResult, dryRun bool) {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	defer func() {

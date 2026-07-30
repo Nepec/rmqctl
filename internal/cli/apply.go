@@ -21,6 +21,10 @@ type applyCommand struct {
 	dryRun       bool
 }
 
+// NewApplyCommand builds the "apply" command, which parses a manifest
+// file and declaratively provisions its resources, via getClient, on
+// every selected vhost. With --dry-run, nothing is provisioned and the
+// resulting definitions are printed instead.
 func NewApplyCommand(getClient api.ClientFactory) *cobra.Command {
 	c := applyCommand{getClient: getClient}
 
