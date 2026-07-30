@@ -13,15 +13,22 @@ const (
 	ExchangeTypeTopic  ExchangeType = "topic"
 )
 
+// ExchangeType is a RabbitMQ exchange type (direct, fanout, or topic).
 type ExchangeType string
 
+// ExchangeSpec declares an exchange.
 type ExchangeSpec struct {
 	Name string         `yaml:"name"`
 	Type ExchangeType   `yaml:"type"`
 	Args map[string]any `yaml:"arguments"`
 }
+
+// ExchangeSpecList is a manifest's list of exchange specs. It implements
+// SpecList.
 type ExchangeSpecList []ExchangeSpec
 
+// IsValid reports whether t is a known exchange type. An empty
+// ExchangeType is treated as valid, deferring to the vhost's default.
 func (t ExchangeType) IsValid() bool {
 	switch t {
 	case ExchangeTypeDirect, ExchangeTypeFanout, ExchangeTypeTopic, "":
@@ -31,6 +38,8 @@ func (t ExchangeType) IsValid() bool {
 	}
 }
 
+// UnmarshalYAML decodes a YAML scalar into an ExchangeType, rejecting
+// values that fail IsValid with an ErrInvalidResourceType.
 func (t *ExchangeType) UnmarshalYAML(value *yaml.Node) error {
 	var s string
 	if err := value.Decode(&s); err != nil {
@@ -47,6 +56,8 @@ func (t *ExchangeType) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+// Validate reports whether an ExchangeSpec is well-formed.
+// An exchange spec requires a non-empty Name.
 func (e ExchangeSpec) Validate() error {
 	if e.Name == "" {
 		return ErrInvalidResourceSpec{resource: "exchange", message: "name cannot be empty"}
@@ -54,6 +65,9 @@ func (e ExchangeSpec) Validate() error {
 	return nil
 }
 
+// MarshalDef translates an ExchangeSpec into a definitions.Exchange.
+// The returned bool reports whether the exchange should be included
+// in the output; for ExchangeSpec it is always true.
 func (e ExchangeSpec) MarshalDef(vhost string) (definitions.Exchange, bool) {
 	args := make(map[string]any, 0)
 	maps.Copy(args, e.Args)
@@ -65,6 +79,7 @@ func (e ExchangeSpec) MarshalDef(vhost string) (definitions.Exchange, bool) {
 	}, true
 }
 
+// Validate reports whether every spec in the list is well-formed.
 func (el ExchangeSpecList) Validate() error {
 	for _, e := range el {
 		if err := e.Validate(); err != nil {
@@ -74,6 +89,7 @@ func (el ExchangeSpecList) Validate() error {
 	return nil
 }
 
+// MarshalDefs translates every spec in the list into definitions.
 func (el ExchangeSpecList) MarshalDefs(vhost string) definitions.Definitions {
 	var exchanges []definitions.Exchange
 

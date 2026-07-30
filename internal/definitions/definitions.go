@@ -5,6 +5,8 @@
 // definitions file imported/exported directly from a RabbitMQ node.
 package definitions
 
+// Definitions is the full set of RabbitMQ resource definitions to be
+// applied to a vhost.
 type Definitions struct {
 	Queues    []Queue    `json:"queues,omitempty"`
 	Bindings  []Binding  `json:"bindings,omitempty"`
@@ -12,6 +14,7 @@ type Definitions struct {
 	Exchanges []Exchange `json:"exchanges,omitempty"`
 }
 
+// Queue is a RabbitMQ queue definition.
 type Queue struct {
 	Name       string         `json:"name"`
 	Vhost      string         `json:"vhost"`
@@ -20,6 +23,7 @@ type Queue struct {
 	Arguments  map[string]any `json:"arguments"`
 }
 
+// Binding is a RabbitMQ binding definition, from Source to Destination.
 type Binding struct {
 	Source          string         `json:"source"`
 	Vhost           string         `json:"vhost"`
@@ -29,6 +33,7 @@ type Binding struct {
 	Arguments       map[string]any `json:"arguments,omitempty"`
 }
 
+// Policy is a RabbitMQ policy definition.
 type Policy struct {
 	Vhost      string         `json:"vhost"`
 	Name       string         `json:"name"`
@@ -38,6 +43,7 @@ type Policy struct {
 	Priority   int            `json:"priority"`
 }
 
+// Exchange is a RabbitMQ exchange definition.
 type Exchange struct {
 	Name      string         `json:"name"`
 	Type      string         `json:"type"`

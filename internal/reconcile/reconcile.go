@@ -1,4 +1,9 @@
 // Package reconcile applies a set of definitions to a RabbitMQ node.
+//
+// Apply is the package's entry point: given a dry-run flag it either
+// prints the definitions that would be created, or declares them against
+// a Provisioner, writing one progress line per resource to the given
+// io.Writer as it goes.
 package reconcile
 
 import (
@@ -10,12 +15,21 @@ import (
 	"github.com/nepec/rmqctl/internal/definitions"
 )
 
+// Provisioner is the minmal client that Apply needs to
+// create resources on a RabbitMQ node.
 type Provisioner interface {
+	// DeclareQueue creates or updates the queue named name on vhost.
 	DeclareQueue(vhost, name string, opts api.QueueDeclareOpts) error
+	// PutPolicy creates or overwrites the policy named name on vhost.
 	PutPolicy(vhost, name string, policy api.Policy) error
+	// DeclareBinding creates the binding described by opts on vhost.
 	DeclareBinding(vhost string, opts api.Binding) error
 }
 
+// Apply provisions defs on vhost using the Provisioner, in order: queues,
+// then policies, then bindings. If dryRun is true, nothing is provisioned
+// and defs is instead written out as indented JSON. Apply stops and
+// returns the first error encountered.
 func Apply(c Provisioner, out io.Writer, vhost string, defs definitions.Definitions, dryRun bool) error {
 	if dryRun {
 		// TODO: print defs

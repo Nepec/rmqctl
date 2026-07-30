@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewListCommand builds the "list" command, the parent for the imperative
+// read-only subcommands ("queues", "vhosts") that inspect resources.
 func NewListCommand(getClient api.ClientFactory) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:          "list",

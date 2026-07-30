@@ -7,6 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewMergeCommand builds the "merge" command, the parent for the
+// imperative subcommands that integrate existing RabbitMQ resource
+// definitions into a vhost (currently just "policy").
 func NewMergeCommand(getClient api.ClientFactory) *cobra.Command {
 	opts := &policy.MergeOptions{}
 
