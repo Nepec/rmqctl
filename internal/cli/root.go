@@ -73,6 +73,7 @@ func newRootCommand(info BuildInfo) *rootCommand {
 	rootCmd.AddCommand(NewListCommand(clientFactory))
 	rootCmd.AddCommand(NewMergeCommand(clientFactory))
 	rootCmd.AddCommand(NewApplyCommand(clientFactory))
+	rootCmd.AddCommand(NewDeleteCommand(clientFactory))
 
 	c.cmd = rootCmd
 

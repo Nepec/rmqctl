@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	rabbithole "github.com/michaelklishin/rabbit-hole/v3"
 )
@@ -96,6 +98,98 @@ func (r *RabbitHoleClient) ListQueuesIn(vhost string) ([]Queue, error) {
 	return qResp, nil
 }
 
+// DeclareQueue implements QueueStore. opts.Arguments must contain an
+// "x-queue-type" entry; DeclareQueue returns an error if it is missing.
+func (r *RabbitHoleClient) DeclareQueue(vhost, name string, opts QueueDeclareOpts) error {
+	// TODO: improve, too crude. should type be checked here or a default be enforced?
+	qt, ok := opts.Arguments["x-queue-type"]
+	if !ok {
+		return fmt.Errorf("missing queue type")
+	}
+	settings := rabbithole.QueueSettings{
+		Type:       qt.(string), //nolint:errcheck
+		Durable:    opts.Durable,
+		AutoDelete: opts.AutoDelete,
+		Arguments:  opts.Arguments,
+	}
+
+	// TODO: check res
+	_, err := r.c.DeclareQueue(vhost, name, settings)
+	if err != nil {
+		return fmt.Errorf("declaring queue %q in %q: %w", name, vhost, err)
+	}
+
+	return nil
+}
+
+var ErrQueueNotSafeToDelete = errors.New("queue has messages or consumers, not safe to delete")
+
+// DeleteQueue deletes a queue in a vhost. force determines whether to delete
+// queues with messages or active consumers.
+// Classic queues leverage the 'if-empty' and 'if-active' query params, while
+// quorum queues are checked manually.
+func (r *RabbitHoleClient) DeleteQueue(vhost, name string, force bool) error {
+	opts := rabbithole.QueueDeleteOptions{IfEmpty: !force, IfUnused: !force}
+	_, err := r.c.DeleteQueue(vhost, name, opts)
+	if err == nil {
+		return nil
+	}
+
+	if !force && isQuorumSafetyUnsupported(err) {
+		return r.deleteQuorumQueueSafely(vhost, name)
+	}
+	if !force && isClassicQueueSafeToDelete(err) {
+		return ErrQueueNotSafeToDelete
+	}
+	return fmt.Errorf("deleting queue %q in %q: %w", name, vhost, err)
+}
+
+func isQuorumSafetyUnsupported(err error) bool {
+	// rabbithole.ErrorResponse bundles all >=400 errors
+	var rme rabbithole.ErrorResponse
+	if !errors.As(err, &rme) {
+		return false // Some other kind of error which should be returned
+	}
+
+	return rme.StatusCode == http.StatusBadRequest && strings.Contains(rme.Reason, "not supported by quorum queues")
+}
+
+// isClassicQueueSafeToDelete reports whether an err from an attempted deletion
+// of a classic queue is due to the queue being non-empty or with active
+// consumers.
+func isClassicQueueSafeToDelete(err error) bool {
+	var rme rabbithole.ErrorResponse
+	if !errors.As(err, &rme) {
+		return false
+	}
+	if rme.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	return strings.Contains(rme.Reason, "not empty") || strings.Contains(rme.Reason, "in use")
+}
+
+// deleteQuorumQueueSafely replicates the if-empty/if-unused check
+// client-side, since quorum queues reject those flags outright
+// (rabbitmq-server#10543). It re-fetches the queue immediately before
+// deciding, rather than trusting an earlier listing, to keep the race
+// window as small as the direct-flag path gets on classic queues.
+func (r *RabbitHoleClient) deleteQuorumQueueSafely(vhost, name string) error {
+	q, err := r.c.GetQueue(vhost, name)
+	if err != nil {
+		var rme rabbithole.ErrorResponse
+		// Match rabbithole idempotent handling of 404s
+		if errors.As(err, &rme) && rme.StatusCode == http.StatusNotFound {
+			return nil // queue already gone, not an error
+		}
+		return fmt.Errorf("checking queue %q in %q before deletion: %w", name, vhost, err)
+	}
+	if q.Messages > 0 || q.Consumers > 0 {
+		return ErrQueueNotSafeToDelete
+	}
+	_, err = r.c.DeleteQueue(vhost, name)
+	return err
+}
+
 // ListPoliciesIn implements PolicyStore.
 func (r *RabbitHoleClient) ListPoliciesIn(vhost string) (Policies, error) {
 	pols, err := r.c.ListPoliciesIn(vhost)
@@ -166,30 +260,6 @@ func (r *RabbitHoleClient) PutPolicy(vhost, name string, policy Policy) error {
 		slog.Debug("policy updated", "vhost", vhost, "policy", policy.Name)
 	default:
 		return fmt.Errorf("could not update policy: %s", res.Status)
-	}
-
-	return nil
-}
-
-// DeclareQueue implements QueueStore. opts.Arguments must contain an
-// "x-queue-type" entry; DeclareQueue returns an error if it is missing.
-func (r *RabbitHoleClient) DeclareQueue(vhost, name string, opts QueueDeclareOpts) error {
-	// TODO: improve, too crude. should type be checked here or a default be enforced?
-	qt, ok := opts.Arguments["x-queue-type"]
-	if !ok {
-		return fmt.Errorf("missing queue type")
-	}
-	settings := rabbithole.QueueSettings{
-		Type:       qt.(string), //nolint:errcheck
-		Durable:    opts.Durable,
-		AutoDelete: opts.AutoDelete,
-		Arguments:  opts.Arguments,
-	}
-
-	// TODO: check res
-	_, err := r.c.DeclareQueue(vhost, name, settings)
-	if err != nil {
-		return fmt.Errorf("declaring queue %q in %q: %w", name, vhost, err)
 	}
 
 	return nil

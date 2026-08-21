@@ -30,6 +30,8 @@ type QueueStore interface {
 	ListQueuesIn(vhost string) ([]Queue, error)
 	// DeclareQueue creates or updates the queue named name on vhost.
 	DeclareQueue(vhost, name string, opts QueueDeclareOpts) error
+	// DeleteQueue deletes a queue on vhost
+	DeleteQueue(vhost, name string, force bool) error
 }
 
 // PolicyStore lists, reads, and writes policies on a vhost.

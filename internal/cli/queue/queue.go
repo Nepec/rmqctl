@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/nepec/rmqctl/internal/api"
+	"github.com/nepec/rmqctl/internal/cli/sharedopts"
 	"github.com/nepec/rmqctl/internal/cli/vhost"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -18,7 +19,8 @@ import (
 type queueCommand struct {
 	getClient api.ClientFactory
 
-	filter FilterOptions
+	filter  FilterOptions
+	delOpts *sharedopts.DeleteOptions
 }
 
 // NewListQueueCommand builds the "queues" command, which lists queues
@@ -174,9 +176,9 @@ func ValidateQueueType(t string) error {
 // QueueTableFormatter renders a list of queues as a tab-aligned table.
 type QueueTableFormatter struct{}
 
-// Print writes results to out as a tab-aligned table, followed by a count
+// Print writes queues to out as a tab-aligned table, followed by a count
 // summary line.
-func (q QueueTableFormatter) Print(out io.Writer, results []api.Queue) {
+func (q QueueTableFormatter) Print(out io.Writer, queues []api.Queue) {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	defer func() {
 		_ = w.Flush()
@@ -184,9 +186,9 @@ func (q QueueTableFormatter) Print(out io.Writer, results []api.Queue) {
 
 	fmt.Fprintln(w, "VHOST\tNAME\tTYPE\tMESSAGES\tACTIVE\tPOLICY NAME")
 
-	for _, r := range results {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%t\t%s\n", r.Vhost, r.Name, r.Type, r.Messages, r.Active, r.PolicyName)
+	for _, q := range queues {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%t\t%s\n", q.Vhost, q.Name, q.Type, q.Messages, q.Active, q.PolicyName)
 	}
-	fmt.Fprintf(out, "\nFound %d queue(s)\n", len(results))
-	fmt.Fprintln(out, "")
+	fmt.Fprintf(w, "Found %d queue(s)", len(queues))
+	fmt.Fprintln(w, "")
 }
