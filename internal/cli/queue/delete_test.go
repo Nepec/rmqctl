@@ -225,3 +225,41 @@ func TestDeleteByFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteByName(t *testing.T) {
+	t.Run("dry-run performs no deletions", func(t *testing.T) {
+		seedQueues := []api.Queue{{Name: "still-here"}}
+		deleteOpts := &sharedopts.DeleteOptions{DryRun: true}
+		client := apitest.NewInMemoryClient().WithQueues(seedQueues)
+
+		client.ListQueuesInFunc = func(vhost string) ([]api.Queue, error) {
+			qs := make([]api.Queue, 0, len(client.Queues))
+			for _, q := range client.Queues {
+				qs = append(qs, q)
+			}
+
+			return qs, nil
+		}
+		client.DeleteQueueFunc = func(vhost, name string, force bool) error {
+			q, ok := client.Queues[name]
+			if !ok {
+				return api.ErrQueueNotFound
+			}
+			if !force && (q.Messages > 0 || q.Active) {
+				return api.ErrQueueNotSafeToDelete
+			}
+			delete(client.Queues, name)
+			return nil
+		}
+
+		var out bytes.Buffer
+		err := deleteByName(&out, client, []string{"/"}, "", deleteOpts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(seedQueues) != len(client.Queues) {
+			t.Errorf("want %d queues, got %d", len(seedQueues), len(client.Queues))
+		}
+	})
+}

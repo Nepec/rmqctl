@@ -142,5 +142,16 @@ func deleteQueues(c api.RabbitClient, out io.Writer, vhost string, queues []api.
 }
 
 func deleteByName(out io.Writer, c api.RabbitClient, vhosts []string, queueName string, deleteOpts *sharedopts.DeleteOptions) error {
+	for _, vhost := range vhosts {
+		slog.Debug("processing vhost", "vhost", vhost)
+
+		if deleteOpts.DryRun {
+			fmt.Fprintf(out, "%s: would delete queue %q\n", vhost, queueName)
+			break
+		}
+
+		_, _ = deleteQueues(c, out, vhost, []api.Queue{{Name: queueName}}, deleteOpts.Force)
+	}
+
 	return nil
 }

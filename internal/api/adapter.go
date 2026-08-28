@@ -122,7 +122,10 @@ func (r *RabbitHoleClient) DeclareQueue(vhost, name string, opts QueueDeclareOpt
 	return nil
 }
 
-var ErrQueueNotSafeToDelete = errors.New("queue has messages or consumers, not safe to delete")
+var (
+	ErrQueueNotSafeToDelete = errors.New("queue has messages or consumers, not safe to delete")
+	ErrQueueNotFound        = errors.New("queue not found")
+)
 
 // DeleteQueue deletes a queue in a vhost. force determines whether to delete
 // queues with messages or active consumers.
@@ -130,18 +133,30 @@ var ErrQueueNotSafeToDelete = errors.New("queue has messages or consumers, not s
 // quorum queues are checked manually.
 func (r *RabbitHoleClient) DeleteQueue(vhost, name string, force bool) error {
 	opts := rabbithole.QueueDeleteOptions{IfEmpty: !force, IfUnused: !force}
-	_, err := r.c.DeleteQueue(vhost, name, opts)
-	if err == nil {
-		return nil
-	}
+	res, err := r.c.DeleteQueue(vhost, name, opts)
 
+	// rabbithole considers 404s a success, check manually
+	if isQueueNotFound(res) {
+		return ErrQueueNotFound
+	}
 	if !force && isQuorumSafetyUnsupported(err) {
 		return r.deleteQuorumQueueSafely(vhost, name)
 	}
 	if !force && isClassicQueueSafeToDelete(err) {
 		return ErrQueueNotSafeToDelete
 	}
-	return fmt.Errorf("deleting queue %q in %q: %w", name, vhost, err)
+	if err != nil {
+		return fmt.Errorf("unexpected error: %w", err)
+	}
+
+	return nil
+}
+
+func isQueueNotFound(res *http.Response) bool {
+	if res == nil {
+		return false
+	}
+	return res.StatusCode == http.StatusNotFound
 }
 
 func isQuorumSafetyUnsupported(err error) bool {
